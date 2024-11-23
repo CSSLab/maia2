@@ -67,7 +67,7 @@ prepared = inference.prepare()
 
 Once the prepapration is done, you can easily run inference position by position:
 ```python
-for fen, move, elo_self, elo_oppo in data.values[:10]:
+for fen, move, elo_self, elo_oppo, _, _ in data.values[:10]:
     move_probs, win_prob = inference.inference_each(maia2_model, prepared, fen, elo_self, elo_oppo)
     print(f"Move: {move}, Predicted: {move_probs}, Win Prob: {win_prob}")
     print(f"Correct: {max(move_probs, key=move_probs.get) == move}")
