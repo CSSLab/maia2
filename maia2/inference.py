@@ -154,7 +154,7 @@ def inference_each(model, prepared, fen, elo_self, elo_oppo):
     legal_moves = legal_moves.unsqueeze(dim=0).to(device)
     
     logits_maia, _, logits_value = model(board_input, elo_self, elo_oppo)
-    logits_maia_legal = logits_maia * legal_moves
+    logits_maia_legal = logits_maia + legal_moves.log()
     probs = logits_maia_legal.softmax(dim=-1).cpu().tolist()
     
     logits_value = (logits_value / 2 + 0.5).clamp(0, 1).item()
