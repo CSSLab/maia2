@@ -84,14 +84,17 @@ def process_per_game(game, white_elo, black_elo, white_win, cfg):
 
 
 def game_filter(game):
-    
+
     white_elo = game.headers.get("WhiteElo", "?")
     black_elo = game.headers.get("BlackElo", "?")
     time_control = game.headers.get("TimeControl", "?")
     result = game.headers.get("Result", "?")
     event = game.headers.get("Event", "?")
-    
+
     if white_elo == "?" or black_elo == "?" or time_control == "?" or result == "?" or event == "?":
+        return
+
+    if game.headers.get("WhiteTitle") == "BOT" or game.headers.get("BlackTitle") == "BOT":
         return
 
     if 'Rated' not in event:
