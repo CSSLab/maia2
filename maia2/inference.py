@@ -1,6 +1,19 @@
 from .utils import *
 from .main import *
 
+
+def _masked_softmax(logits, legal_moves):
+
+    legal_moves = legal_moves.bool()
+    rows_without_legal_moves = ~legal_moves.any(dim=-1)
+    if rows_without_legal_moves.any():
+        row_indices = rows_without_legal_moves.nonzero(as_tuple=False).flatten().tolist()
+        raise ValueError(f"Cannot run inference without legal moves (batch rows: {row_indices}).")
+
+    masked_logits = logits.masked_fill(~legal_moves, float("-inf"))
+    return masked_logits.softmax(dim=-1)
+
+
 def preprocessing(fen, elo_self, elo_oppo, elo_dict, all_moves_dict):
         
     if fen.split(' ')[1] == 'w':
@@ -16,7 +29,10 @@ def preprocessing(fen, elo_self, elo_oppo, elo_dict, all_moves_dict):
     elo_oppo = map_to_category(elo_oppo, elo_dict)
     
     legal_moves = torch.zeros(len(all_moves_dict))
-    legal_moves_idx = torch.tensor([all_moves_dict[move.uci()] for move in board.legal_moves])
+    legal_moves_idx = [all_moves_dict[move.uci()] for move in board.legal_moves]
+    if not legal_moves_idx:
+        raise ValueError(f"Cannot run inference on a position without legal moves: {fen}")
+    legal_moves_idx = torch.tensor(legal_moves_idx, dtype=torch.long)
     legal_moves[legal_moves_idx] = 1
     
     return board_input, elo_self, elo_oppo, legal_moves
@@ -60,8 +76,7 @@ def get_preds(model, dataloader, all_moves_dict_reversed):
             legal_moves = legal_moves.to(device)
 
             logits_maia, _, logits_value = model(boards, elos_self, elos_oppo)
-            logits_maia_legal = logits_maia * legal_moves
-            probs = logits_maia_legal.softmax(dim=-1).cpu().tolist()
+            probs = _masked_softmax(logits_maia, legal_moves).cpu().tolist()
             
             logits_value = (logits_value / 2 + 0.5).clamp(0, 1).cpu().tolist()
         
@@ -154,8 +169,8 @@ def inference_each(model, prepared, fen, elo_self, elo_oppo):
     legal_moves = legal_moves.unsqueeze(dim=0).to(device)
     
     logits_maia, _, logits_value = model(board_input, elo_self, elo_oppo)
-    logits_maia_legal = logits_maia * legal_moves
-    probs = logits_maia_legal.softmax(dim=-1).cpu().tolist()
+
+    probs = _masked_softmax(logits_maia, legal_moves).cpu().tolist()
     
     logits_value = (logits_value / 2 + 0.5).clamp(0, 1).item()
     
@@ -180,4 +195,3 @@ def inference_each(model, prepared, fen, elo_self, elo_oppo):
     move_probs = dict(sorted(move_probs.items(), key=lambda item: item[1], reverse=True))
     
     return move_probs, win_prob
-
