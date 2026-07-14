@@ -1,5 +1,8 @@
 # Maia2: A Unified Model for Human-AI Alignment in Chess
 
+> [!IMPORTANT]
+> **[Maia-3](https://github.com/CSSLab/maia3) is now available and is recommended for new projects.** It is the latest generation of our human chess modeling work, built on the Chessformer architecture. See the [code](https://github.com/CSSLab/maia3), [pre-trained models](https://huggingface.co/collections/UofTCSSLab/maia3), [paper](https://arxiv.org/abs/2605.19091), and [website](https://maiachess.com/).
+
 The official implementation of the NeurIPS 2024 paper **Maia-2** [[paper](https://arxiv.org/abs/2409.20553)]. This work was led by [CSSLab](https://csslab.cs.toronto.edu/) at the University of Toronto.
 
 ## Abstract
