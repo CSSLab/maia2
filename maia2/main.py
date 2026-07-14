@@ -94,6 +94,14 @@ def game_filter(game):
     if white_elo == "?" or black_elo == "?" or time_control == "?" or result == "?" or event == "?":
         return
 
+    # Lichess marks games involving bot accounts with a BOT player title.
+    # Filter these games before doing any move-level preprocessing.
+    if any(
+        game.headers.get(title, "").strip().upper() == "BOT"
+        for title in ("WhiteTitle", "BlackTitle")
+    ):
+        return
+
     if 'Rated' not in event:
         return
     
