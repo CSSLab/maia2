@@ -100,7 +100,7 @@ If you would like to restore training from a checkpoint, please modify the `from
 
 ## Citation
 
-If you find our code or pre-trained models useful, please cite our work as follows:
+If you find the Maia-2 code or pre-trained models useful, please cite:
 
 ```bibtex
 @inproceedings{
@@ -112,6 +112,20 @@ year={2024},
 url={https://openreview.net/forum?id=XWlkhRn14K}
 }
 ```
+
+For the latest generation of our human chess modeling work, please also see and cite Maia-3:
+
+```bibtex
+@inproceedings{monroe2026chessformer,
+title={Chessformer: A Unified Architecture for Chess Modeling},
+author={Daniel Monroe and George Eilender and Philip Chalmers and Zhenwei Tang and Ashton Anderson},
+booktitle={The Fourteenth International Conference on Learning Representations},
+year={2026},
+url={https://openreview.net/forum?id=2ltBRzEHyd}
+}
+```
+
+If your work uses both Maia-2 and Maia-3, we would appreciate it if you cited both papers. If you find these projects helpful, please also consider starring both the [Maia-2](https://github.com/CSSLab/maia2) and [Maia-3](https://github.com/CSSLab/maia3) repositories—it helps others discover the work.
 
 ## Contact
 
