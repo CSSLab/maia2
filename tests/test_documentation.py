@@ -47,6 +47,31 @@ class DocumentationTest(unittest.TestCase):
         self.assertEqual(citation["version"], maia2.__version__)
         date.fromisoformat(str(citation["date-released"]))
 
+    def test_public_version_surfaces_match_package_version(self):
+        root = Path(__file__).parents[1]
+        version = maia2.__version__
+
+        self.assertIn(
+            f"https://img.shields.io/pypi/v/maia2.svg?v={version}",
+            self.readme,
+        )
+        self.assertIn(
+            f'placeholder: "{version} or commit SHA"',
+            root.joinpath(".github", "ISSUE_TEMPLATE", "bug_report.yml").read_text(
+                encoding="utf-8"
+            ),
+        )
+        self.assertIn(
+            f"assert maia2.__version__ == '{version}'",
+            root.joinpath(".github", "workflows", "ci.yml").read_text(encoding="utf-8"),
+        )
+
+        release_series = ".".join(version.split(".")[:2])
+        self.assertIn(
+            f"| {release_series}.x | Yes |",
+            root.joinpath("SECURITY.md").read_text(encoding="utf-8"),
+        )
+
     def test_dependabot_keeps_runtime_version_updates_manual(self):
         config = yaml.safe_load(
             Path(__file__)

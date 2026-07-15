@@ -1,7 +1,7 @@
 # Maia-2: A Unified Model for Human-AI Alignment in Chess
 
 [![CI](https://github.com/CSSLab/maia2/actions/workflows/ci.yml/badge.svg)](https://github.com/CSSLab/maia2/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/maia2.svg)](https://pypi.org/project/maia2/)
+[![PyPI](https://img.shields.io/pypi/v/maia2.svg?v=0.11.0)](https://pypi.org/project/maia2/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://github.com/CSSLab/maia2/blob/main/pyproject.toml)
 [![License](https://img.shields.io/github/license/CSSLab/maia2.svg)](https://github.com/CSSLab/maia2/blob/main/LICENSE)
 
