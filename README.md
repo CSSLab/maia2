@@ -17,9 +17,9 @@ gdown==5.2.0
 numpy==2.1.3
 pandas==2.2.3
 pyzstd==0.15.9
-Requests==2.32.3
-torch==2.4.0
-tqdm==4.65.0
+Requests==2.32.4
+torch==2.8.0
+tqdm==4.66.3
 ```
 
 The version requirements may not be very strict, but the above configuration should work.
