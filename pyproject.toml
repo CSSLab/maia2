@@ -25,12 +25,12 @@ dynamic = ["version"]
 dependencies = [
     "chess>=1.10.0,<2",
     "einops>=0.8.0,<1",
-    "gdown>=5.2.0,<6",
+    "gdown>=5.2.2,<6",
     "numpy>=2.1.3,<3",
     "pandas>=2.2.3,<3",
     "pyyaml>=6.0.2,<7",
     "pyzstd>=0.19.1,<0.20",
-    "requests>=2.32.4,<3",
+    "requests>=2.33.0,<3",
     "torch>=2.8.0,<2.9",
     "tqdm>=4.66.3,<5",
 ]
