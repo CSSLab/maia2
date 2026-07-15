@@ -1,5 +1,6 @@
 import hashlib
 import json
+import math
 import os
 from multiprocessing import cpu_count, get_context
 from pathlib import Path
@@ -718,6 +719,82 @@ def _verify_expected_source_hash(cfg, pgn_path, expected=_UNSET):
     return actual
 
 
+def _validate_rng_state_payload(state):
+    """Require the portable RNG state written by modern checkpoints."""
+
+    if not isinstance(state, dict):
+        raise RuntimeError("Checkpoint rng_state must be a mapping.")
+    if not isinstance(state.get("python"), tuple):
+        raise RuntimeError("Checkpoint rng_state is missing Python RNG state.")
+    try:
+        random.Random().setstate(state["python"])
+    except (TypeError, ValueError) as error:
+        raise RuntimeError("Checkpoint Python RNG state is malformed.") from error
+
+    numpy_state = state.get("numpy")
+    required_numpy_keys = {
+        "bit_generator",
+        "keys",
+        "position",
+        "has_gauss",
+        "cached_gaussian",
+    }
+    if not isinstance(numpy_state, dict) or not required_numpy_keys.issubset(
+        numpy_state
+    ):
+        raise RuntimeError("Checkpoint rng_state is missing NumPy RNG state.")
+    if not isinstance(numpy_state["bit_generator"], str) or not isinstance(
+        numpy_state["keys"], list
+    ):
+        raise RuntimeError("Checkpoint NumPy RNG state is malformed.")
+    try:
+        numpy_probe = np.random.RandomState()
+        numpy_probe.set_state(
+            (
+                numpy_state["bit_generator"],
+                np.asarray(numpy_state["keys"], dtype=np.uint32),
+                numpy_state["position"],
+                numpy_state["has_gauss"],
+                numpy_state["cached_gaussian"],
+            )
+        )
+    except (TypeError, ValueError, OverflowError) as error:
+        raise RuntimeError("Checkpoint NumPy RNG state is malformed.") from error
+
+    torch_cpu = state.get("torch_cpu")
+    if (
+        not torch.is_tensor(torch_cpu)
+        or torch_cpu.dtype != torch.uint8
+        or torch_cpu.ndim != 1
+        or torch_cpu.numel() != torch.get_rng_state().numel()
+    ):
+        raise RuntimeError("Checkpoint rng_state is missing Torch CPU RNG state.")
+
+    if "torch_cuda" in state:
+        torch_cuda = state["torch_cuda"]
+        if (
+            not isinstance(torch_cuda, (list, tuple))
+            or not torch_cuda
+            or any(
+                not torch.is_tensor(item)
+                or item.dtype != torch.uint8
+                or item.ndim != 1
+                or item.numel() == 0
+                for item in torch_cuda
+            )
+        ):
+            raise RuntimeError("Checkpoint Torch CUDA RNG state is malformed.")
+    if "torch_mps" in state:
+        torch_mps = state["torch_mps"]
+        if (
+            not torch.is_tensor(torch_mps)
+            or torch_mps.dtype != torch.uint8
+            or torch_mps.ndim != 1
+            or torch_mps.numel() == 0
+        ):
+            raise RuntimeError("Checkpoint Torch MPS RNG state is malformed.")
+
+
 def _validate_checkpoint_metadata(
     checkpoint, cfg, *, expected_epoch, expected_archive_name, expected_source_sha256
 ):
@@ -740,6 +817,27 @@ def _validate_checkpoint_metadata(
         raise RuntimeError(
             "Checkpoint training_metadata format_version is missing or "
             f"unsupported: {metadata.get('format_version')!r}."
+        )
+
+    for key in ("maia2_version", "torch_version"):
+        value = metadata.get(key)
+        if not isinstance(value, str) or not value:
+            raise RuntimeError(
+                f"Checkpoint training_metadata is missing a valid {key}."
+            )
+
+    for key in ("accumulated_samples", "accumulated_games"):
+        value = checkpoint.get(key)
+        if type(value) is not int or value <= 0:
+            raise RuntimeError(
+                f"Checkpoint {key} must be a positive integer, got {value!r}."
+            )
+
+    optimizer_steps = metadata.get("optimizer_steps")
+    if type(optimizer_steps) is not int or optimizer_steps <= 0:
+        raise RuntimeError(
+            "Checkpoint training_metadata optimizer_steps must be a positive "
+            f"integer, got {optimizer_steps!r}."
         )
 
     expected_critical_sha256 = _run_manifest(cfg)["critical_config_sha256"]
@@ -765,10 +863,32 @@ def _validate_checkpoint_metadata(
         raise RuntimeError(
             "Checkpoint training_metadata is missing its source manifest."
         )
+
+    expected_decompressed_name = expected_archive_name.removesuffix(".zst")
+    for key in ("archive_size", "decompressed_size"):
+        value = source.get(key)
+        if type(value) is not int or value <= 0:
+            raise RuntimeError(
+                f"Checkpoint source {key} must be a positive integer, got {value!r}."
+            )
+    for key in ("archive_sha256", "decompressed_sha256"):
+        try:
+            _validate_sha256_digest(source.get(key), label=f"source.{key}")
+        except (TypeError, ValueError) as error:
+            raise RuntimeError(
+                f"Checkpoint source manifest is invalid: {error}"
+            ) from error
+
     if source.get("archive_name") != expected_archive_name:
         raise RuntimeError(
             "Checkpoint source archive does not match the configured resume "
             f"month: {source.get('archive_name')!r} != {expected_archive_name!r}."
+        )
+    if source.get("decompressed_name") != expected_decompressed_name:
+        raise RuntimeError(
+            "Checkpoint decompressed source does not match the configured "
+            f"resume month: {source.get('decompressed_name')!r} != "
+            f"{expected_decompressed_name!r}."
         )
     if expected_source_sha256 is not None:
         recorded = source.get("archive_sha256")
@@ -845,6 +965,73 @@ def _validate_optimizer_hyperparameters(optimizer, cfg):
         )
 
 
+def _normalized_optimizer_step(step):
+    """Return a validated optimizer step as an integer."""
+
+    if torch.is_tensor(step):
+        if step.numel() != 1:
+            raise RuntimeError("Checkpoint optimizer step must be scalar.")
+        step = step.item()
+    if isinstance(step, bool) or not isinstance(step, (int, float)):
+        raise RuntimeError(f"Checkpoint optimizer step is invalid: {step!r}.")
+    if not math.isfinite(step) or int(step) != step:
+        raise RuntimeError(f"Checkpoint optimizer step is invalid: {step!r}.")
+    return int(step)
+
+
+def _validate_serialized_optimizer_step_count(optimizer_state_dict, expected_steps):
+    """Validate raw optimizer steps before PyTorch attempts to deserialize them."""
+
+    if not isinstance(optimizer_state_dict, dict):
+        raise RuntimeError("Checkpoint optimizer_state_dict must be a mapping.")
+    states = optimizer_state_dict.get("state")
+    if not isinstance(states, dict):
+        raise RuntimeError("Checkpoint optimizer state must be a mapping.")
+
+    recorded_steps = []
+    for state in states.values():
+        if not isinstance(state, dict):
+            raise RuntimeError(
+                "Checkpoint optimizer parameter state must be a mapping."
+            )
+        if not state:
+            continue
+        if "step" not in state:
+            raise RuntimeError(
+                "Checkpoint optimizer state is initialized but missing step."
+            )
+        recorded_steps.append(_normalized_optimizer_step(state["step"]))
+
+    if not recorded_steps or any(step != expected_steps for step in recorded_steps):
+        unique_steps = sorted(set(recorded_steps))
+        raise RuntimeError(
+            "Checkpoint optimizer steps do not match training_metadata: "
+            f"optimizer={unique_steps!r}, metadata={expected_steps!r}."
+        )
+
+
+def _validate_optimizer_step_count(optimizer, expected_steps):
+    """Require every materialized AdamW parameter to match metadata steps."""
+
+    recorded_steps = []
+    for state in optimizer.state.values():
+        if not state:
+            continue
+        if "step" not in state:
+            raise RuntimeError(
+                "Checkpoint optimizer state is initialized but missing step."
+            )
+        step = state["step"]
+        recorded_steps.append(_normalized_optimizer_step(step))
+
+    if not recorded_steps or any(step != expected_steps for step in recorded_steps):
+        unique_steps = sorted(set(recorded_steps))
+        raise RuntimeError(
+            "Checkpoint optimizer steps do not match training_metadata: "
+            f"optimizer={unique_steps!r}, metadata={expected_steps!r}."
+        )
+
+
 def _load_resume_checkpoint(
     checkpoint_path,
     model,
@@ -872,9 +1059,17 @@ def _load_resume_checkpoint(
         expected_archive_name=expected_archive_name,
         expected_source_sha256=expected_source_sha256,
     )
+    metadata = checkpoint.get("training_metadata")
+    if metadata is not None:
+        _validate_rng_state_payload(checkpoint.get("rng_state"))
+        _validate_serialized_optimizer_step_count(
+            checkpoint.get("optimizer_state_dict"), metadata["optimizer_steps"]
+        )
     load_model_state_dict(model, checkpoint["model_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     _validate_optimizer_hyperparameters(optimizer, cfg)
+    if metadata is not None:
+        _validate_optimizer_step_count(optimizer, metadata["optimizer_steps"])
     _normalize_optimizer_state_devices(optimizer)
     _restore_rng_state(checkpoint.get("rng_state"))
     return checkpoint

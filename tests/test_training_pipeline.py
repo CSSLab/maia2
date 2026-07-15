@@ -1,3 +1,4 @@
+import copy
 import io
 import hashlib
 import json
@@ -621,16 +622,26 @@ class TrainingPipelineTest(unittest.TestCase):
         checkpoint = {
             "model_state_dict": source_model.state_dict(),
             "optimizer_state_dict": source_optimizer.state_dict(),
+            "accumulated_samples": 2,
+            "accumulated_games": 1,
+            "rng_state": train._capture_rng_state(torch.device("cpu")),
             "training_metadata": {
                 "format_version": 3,
+                "maia2_version": "0.10.1",
+                "torch_version": str(torch.__version__),
                 "epoch": cfg.checkpoint_epoch,
+                "optimizer_steps": 1,
                 "critical_config_sha256": train._run_manifest(cfg)[
                     "critical_config_sha256"
                 ],
                 "config": vars(cfg).copy(),
                 "source": {
                     "archive_name": "lichess_db_standard_rated_2023-01.pgn.zst",
+                    "archive_size": 1,
                     "archive_sha256": archive_sha256,
+                    "decompressed_name": "lichess_db_standard_rated_2023-01.pgn",
+                    "decompressed_size": 1,
+                    "decompressed_sha256": "c" * 64,
                 },
             },
         }
@@ -650,6 +661,69 @@ class TrainingPipelineTest(unittest.TestCase):
                     checkpoint_path,
                     target_model,
                     target_optimizer,
+                    cfg,
+                    expected_source_sha256=archive_sha256,
+                )
+
+            checkpoint_without_rng = dict(checkpoint)
+            checkpoint_without_rng.pop("rng_state")
+            missing_rng_path = Path(directory, "missing-rng.pt")
+            torch.save(checkpoint_without_rng, missing_rng_path)
+            missing_rng_model = torch.nn.Linear(2, 1)
+            missing_rng_optimizer = torch.optim.AdamW(
+                missing_rng_model.parameters(), lr=cfg.lr, weight_decay=cfg.wd
+            )
+            with self.assertRaisesRegex(RuntimeError, "rng_state"):
+                train._load_resume_checkpoint(
+                    missing_rng_path,
+                    missing_rng_model,
+                    missing_rng_optimizer,
+                    cfg,
+                    expected_source_sha256=archive_sha256,
+                )
+
+            checkpoint_with_wrong_step = {
+                **checkpoint,
+                "training_metadata": {
+                    **checkpoint["training_metadata"],
+                    "optimizer_steps": 2,
+                },
+            }
+            wrong_step_path = Path(directory, "wrong-step.pt")
+            torch.save(checkpoint_with_wrong_step, wrong_step_path)
+            wrong_step_model = torch.nn.Linear(2, 1)
+            wrong_step_optimizer = torch.optim.AdamW(
+                wrong_step_model.parameters(), lr=cfg.lr, weight_decay=cfg.wd
+            )
+            with self.assertRaisesRegex(RuntimeError, "optimizer steps"):
+                train._load_resume_checkpoint(
+                    wrong_step_path,
+                    wrong_step_model,
+                    wrong_step_optimizer,
+                    cfg,
+                    expected_source_sha256=archive_sha256,
+                )
+
+            checkpoint_without_parameter_step = copy.deepcopy(checkpoint)
+            first_optimizer_state = next(
+                iter(
+                    checkpoint_without_parameter_step["optimizer_state_dict"][
+                        "state"
+                    ].values()
+                )
+            )
+            del first_optimizer_state["step"]
+            missing_step_path = Path(directory, "missing-optimizer-step.pt")
+            torch.save(checkpoint_without_parameter_step, missing_step_path)
+            missing_step_model = torch.nn.Linear(2, 1)
+            missing_step_optimizer = torch.optim.AdamW(
+                missing_step_model.parameters(), lr=cfg.lr, weight_decay=cfg.wd
+            )
+            with self.assertRaisesRegex(RuntimeError, "missing step"):
+                train._load_resume_checkpoint(
+                    missing_step_path,
+                    missing_step_model,
+                    missing_step_optimizer,
                     cfg,
                     expected_source_sha256=archive_sha256,
                 )
@@ -675,16 +749,26 @@ class TrainingPipelineTest(unittest.TestCase):
         checkpoint = {
             "model_state_dict": source_model.state_dict(),
             "optimizer_state_dict": source_optimizer.state_dict(),
+            "accumulated_samples": 2,
+            "accumulated_games": 1,
+            "rng_state": train._capture_rng_state(torch.device("cpu")),
             "training_metadata": {
                 "format_version": 3,
+                "maia2_version": "0.10.1",
+                "torch_version": str(torch.__version__),
                 "epoch": cfg.checkpoint_epoch,
+                "optimizer_steps": 1,
                 "critical_config_sha256": train._run_manifest(cfg)[
                     "critical_config_sha256"
                 ],
                 "config": vars(cfg).copy(),
                 "source": {
                     "archive_name": "lichess_db_standard_rated_2023-01.pgn.zst",
+                    "archive_size": 1,
                     "archive_sha256": archive_sha256,
+                    "decompressed_name": "lichess_db_standard_rated_2023-01.pgn",
+                    "decompressed_size": 1,
+                    "decompressed_sha256": "c" * 64,
                 },
             },
         }
@@ -742,9 +826,14 @@ class TrainingPipelineTest(unittest.TestCase):
 
         def checkpoint_for(config=None, epoch=None, archive=None, digest=None):
             return {
+                "accumulated_samples": 2,
+                "accumulated_games": 1,
                 "training_metadata": {
                     "format_version": 3,
+                    "maia2_version": "0.10.1",
+                    "torch_version": str(torch.__version__),
                     "epoch": cfg.checkpoint_epoch if epoch is None else epoch,
+                    "optimizer_steps": 1,
                     "critical_config_sha256": train._run_manifest(cfg)[
                         "critical_config_sha256"
                     ],
@@ -755,9 +844,13 @@ class TrainingPipelineTest(unittest.TestCase):
                             if archive is None
                             else archive
                         ),
+                        "archive_size": 1,
                         "archive_sha256": (source_sha256 if digest is None else digest),
+                        "decompressed_name": ("lichess_db_standard_rated_2023-01.pgn"),
+                        "decompressed_size": 1,
+                        "decompressed_sha256": "c" * 64,
                     },
-                }
+                },
             }
 
         common = dict(
@@ -775,6 +868,16 @@ class TrainingPipelineTest(unittest.TestCase):
         unknown_format_version["training_metadata"]["format_version"] = 999
         with self.assertRaisesRegex(RuntimeError, "format_version"):
             train._validate_checkpoint_metadata(unknown_format_version, **common)
+
+        missing_optimizer_steps = checkpoint_for()
+        del missing_optimizer_steps["training_metadata"]["optimizer_steps"]
+        with self.assertRaisesRegex(RuntimeError, "optimizer_steps"):
+            train._validate_checkpoint_metadata(missing_optimizer_steps, **common)
+
+        invalid_optimizer_steps = checkpoint_for()
+        invalid_optimizer_steps["training_metadata"]["optimizer_steps"] = 0
+        with self.assertRaisesRegex(RuntimeError, "optimizer_steps"):
+            train._validate_checkpoint_metadata(invalid_optimizer_steps, **common)
 
         missing_critical_hash = checkpoint_for()
         del missing_critical_hash["training_metadata"]["critical_config_sha256"]
@@ -798,6 +901,18 @@ class TrainingPipelineTest(unittest.TestCase):
             train._validate_checkpoint_metadata(
                 checkpoint_for(digest="b" * 64), **common
             )
+
+        for source_key in (
+            "archive_size",
+            "decompressed_name",
+            "decompressed_size",
+            "decompressed_sha256",
+        ):
+            with self.subTest(source_key=source_key):
+                incomplete_source = checkpoint_for()
+                del incomplete_source["training_metadata"]["source"][source_key]
+                with self.assertRaisesRegex(RuntimeError, "source|decompressed"):
+                    train._validate_checkpoint_metadata(incomplete_source, **common)
 
         for key, changed_value in (
             ("dim_cnn", 999),
