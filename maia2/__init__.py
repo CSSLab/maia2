@@ -1,3 +1,3 @@
-"""An amazing sample package for maia2."""
+"""Official implementation of Maia-2, a unified human-like chess model."""
 
-__version__ = "0.10.0"
+__version__ = "0.10.1"

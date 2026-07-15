@@ -1,0 +1,42 @@
+name: Feature request
+description: Suggest a focused improvement to Maia-2
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Maia-3 is recommended for new projects. Please explain why this change
+        belongs in the maintained Maia-2 implementation.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or research need
+      description: Describe the use case and current limitation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the desired API or behavior and possible alternatives.
+    validations:
+      required: true
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and validation
+      description: Explain effects on checkpoints, training data, and CPU/CUDA/MPS.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I considered whether Maia-3 already supports this use case.
+          required: true

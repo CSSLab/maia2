@@ -2,6 +2,10 @@
 /data
 /test
 /saves
+/maia2_models/
+/maia2_data/
+*_chunks_*.json
+*.pgn.provenance.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

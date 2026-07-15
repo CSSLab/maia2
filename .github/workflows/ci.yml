@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            maia2/requirements.txt
+
+      - name: Install release-validation environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.8.0
+          python -m pip install -r maia2/requirements.txt
+          python -m pip install -e ".[dev]"
+
+      - name: Check installed dependencies
+        run: python -m pip check
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Run Ruff checks
+        run: |
+          python -m ruff check maia2 tests
+          python -m ruff format --check maia2 tests
+
+      - name: Build distributions
+        if: matrix.python-version == '3.12'
+        run: |
+          python -m build
+          unzip -l dist/*.whl | grep -F "maia2/configs/maia2-training.yaml"
+          tar -tzf dist/*.tar.gz | grep -F "maia2/configs/maia2-training.yaml"
+          python -m pip install --force-reinstall --no-deps dist/*.whl
+          python -c "import hashlib, pathlib, maia2; p = pathlib.Path(maia2.__file__).parent / 'configs' / 'maia2-training.yaml'; assert maia2.__version__ == '0.10.1'; assert hashlib.sha256(p.read_bytes()).hexdigest() == '4b06a5e6917dba8a55defaf3947ce97a73edca3ae2c9d225779a620353c1371b'"
+          python -m pip check

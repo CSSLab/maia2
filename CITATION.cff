@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: >-
+  If you use Maia-2 in your work, please cite the Maia-2 paper using the
+  preferred citation below.
+title: "Maia-2: A Unified Model for Human-AI Alignment in Chess"
+type: software
+authors:
+  - given-names: Zhenwei
+    family-names: Tang
+  - given-names: Difan
+    family-names: Jiao
+  - given-names: Reid
+    family-names: McIlroy-Young
+  - given-names: Jon
+    family-names: Kleinberg
+  - given-names: Siddhartha
+    family-names: Sen
+  - given-names: Ashton
+    family-names: Anderson
+repository-code: "https://github.com/CSSLab/maia2"
+url: "https://www.maiachess.com/"
+license: MIT
+version: "0.10.0"
+date-released: "2026-07-15"
+preferred-citation:
+  type: conference-paper
+  title: "Maia-2: A Unified Model for Human-AI Alignment in Chess"
+  authors:
+    - given-names: Zhenwei
+      family-names: Tang
+    - given-names: Difan
+      family-names: Jiao
+    - given-names: Reid
+      family-names: McIlroy-Young
+    - given-names: Jon
+      family-names: Kleinberg
+    - given-names: Siddhartha
+      family-names: Sen
+    - given-names: Ashton
+      family-names: Anderson
+  conference:
+    name: The Thirty-eighth Annual Conference on Neural Information Processing Systems
+  doi: "10.48550/arXiv.2409.20553"
+  year: 2024
+  url: "https://openreview.net/forum?id=XWlkhRn14K"

@@ -38,6 +38,16 @@ class TrainingGameFilterTest(unittest.TestCase):
         self.assertIsNotNone(game_filter(_game_with_titles()))
         self.assertIsNotNone(game_filter(_game_with_titles("GM", "IM")))
 
+    def test_keeps_rated_database_games_with_arena_event_names(self):
+        game = _game_with_titles()
+        game.headers["Event"] = "≤2000 Rapid Arena"
+        self.assertIsNotNone(game_filter(game))
+
+    def test_drops_an_explicitly_casual_rapid_export(self):
+        game = _game_with_titles()
+        game.headers["Event"] = "Casual Rapid game"
+        self.assertIsNone(game_filter(game))
+
     def test_drops_games_with_a_labeled_bot(self):
         bot_title_pairs = [
             ("BOT", None),
@@ -51,6 +61,13 @@ class TrainingGameFilterTest(unittest.TestCase):
                 self.assertIsNone(
                     game_filter(_game_with_titles(white_title, black_title))
                 )
+
+    def test_drops_games_with_malformed_elo_headers(self):
+        for header in ("WhiteElo", "BlackElo"):
+            with self.subTest(header=header):
+                game = _game_with_titles()
+                game.headers[header] = "not-an-elo"
+                self.assertIsNone(game_filter(game))
 
 
 if __name__ == "__main__":

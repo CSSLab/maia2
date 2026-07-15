@@ -1,0 +1,42 @@
+# General Settings
+data_root: "/datadrive2/lichess_data"
+seed: 42
+num_workers: 16
+verbose: 1
+max_epochs: 3
+max_ply: 300
+clock_threshold: 30
+chunk_size: 20000
+start_year: 2018
+start_month: 5
+end_year: 2023
+end_month: 11
+from_checkpoint: false
+checkpoint_epoch: 0
+checkpoint_year: 2018
+checkpoint_month: 5
+num_cpu_left: 16
+queue_length: 2
+
+# Training Parameters
+lr: 0.0001
+wd: 0.00001
+batch_size: 8192
+first_n_moves: 10
+last_n_moves: 10
+
+# Model Architecture
+dim_cnn: 256
+dim_vit: 1024
+num_blocks_cnn: 5
+num_blocks_vit: 2
+input_channels: 18
+vit_length: 8
+elo_dim: 128
+
+# Feature and Loss Settings
+side_info: true
+side_info_coefficient: 1.0
+value: true
+value_coefficient: 1.0
+max_games_per_elo_range: 20

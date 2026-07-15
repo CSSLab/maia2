@@ -33,10 +33,16 @@ class PretrainedModelDeviceTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as save_root:
             Path(save_root, "rapid_model.pt").touch()
-            Path(save_root, "config.yaml").touch()
+            legacy_config = Path(save_root, "config.yaml")
+            legacy_contents = "data_root: /a/user/edited/path\n"
+            legacy_config.write_text(legacy_contents, encoding="utf-8")
             with (
-                mock.patch("maia2.model.parse_args", return_value=cfg),
+                mock.patch("maia2.model.parse_args", return_value=cfg) as parse,
                 mock.patch("maia2.model.torch.load", return_value=checkpoint),
+                mock.patch(
+                    "maia2.model.download_google_drive_file",
+                    side_effect=lambda url, path, **kwargs: path,
+                ) as download,
                 mock.patch(
                     "maia2.model.resolve_device",
                     return_value=torch.device("cpu"),
@@ -48,7 +54,10 @@ class PretrainedModelDeviceTest(unittest.TestCase):
                     save_root=save_root,
                 )
 
-        resolve.assert_called_once_with("mps")
+            resolve.assert_called_once_with("mps")
+            download.assert_called_once()
+            self.assertNotEqual(Path(parse.call_args.args[0]), legacy_config)
+            self.assertEqual(legacy_config.read_text(encoding="utf-8"), legacy_contents)
         self.assertEqual(next(loaded.parameters()).device, torch.device("cpu"))
         for key, value in source.state_dict().items():
             torch.testing.assert_close(loaded.state_dict()[key], value)

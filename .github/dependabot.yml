@@ -1,0 +1,34 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      python-runtime:
+        patterns:
+          - "*"
+    labels:
+      - dependencies
+
+  - package-ecosystem: pip
+    directory: "/maia2"
+    schedule:
+      interval: weekly
+    groups:
+      release-validation-environment:
+        patterns:
+          - "*"
+    labels:
+      - dependencies
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    labels:
+      - dependencies
