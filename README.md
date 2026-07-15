@@ -36,11 +36,16 @@ pip install maia2
 from maia2 import model, dataset, inference
 ```
 
-You can load a model for `"rapid"` or `"blitz"` games with either CPU or GPU.
+You can load a model for `"rapid"` or `"blitz"` games on CUDA, Apple Silicon
+MPS, or CPU. The default `"auto"` setting selects CUDA first, then MPS, and
+finally CPU.
 
 ```python
-maia2_model = model.from_pretrained(type="rapid", device="gpu")
+maia2_model = model.from_pretrained(type="rapid", device="auto")
 ```
+
+Set `device` explicitly to `"cuda"`, `"mps"`, or `"cpu"` when needed. The
+older `"gpu"` value remains supported as an alias for `"cuda"`.
 
 Load a pre-defined example test dataset for demonstration.
 

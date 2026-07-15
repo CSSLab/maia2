@@ -41,6 +41,10 @@ class TrainingDeviceTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "MPS was requested"):
                 resolve_device("mps")
 
+    def test_gpu_remains_an_alias_for_cuda(self):
+        with mock.patch("torch.cuda.is_available", return_value=True):
+            self.assertEqual(resolve_device("gpu"), torch.device("cuda"))
+
     def test_loads_data_parallel_checkpoint_into_unwrapped_model(self):
         source = nn.Linear(3, 2)
         checkpoint = {

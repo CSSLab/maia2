@@ -168,7 +168,8 @@ def inference_each(model, prepared, fen, elo_self, elo_oppo):
     elo_oppo = torch.tensor([elo_oppo]).to(device)
     legal_moves = legal_moves.unsqueeze(dim=0).to(device)
     
-    logits_maia, _, logits_value = model(board_input, elo_self, elo_oppo)
+    with torch.no_grad():
+        logits_maia, _, logits_value = model(board_input, elo_self, elo_oppo)
 
     probs = _masked_softmax(logits_maia, legal_moves).cpu().tolist()
     
