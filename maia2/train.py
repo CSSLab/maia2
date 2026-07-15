@@ -735,6 +735,12 @@ def _validate_checkpoint_metadata(
     if not isinstance(metadata, dict):
         raise RuntimeError("Checkpoint training_metadata must be a mapping.")
 
+    if metadata.get("format_version") != 3:
+        raise RuntimeError(
+            "Checkpoint training_metadata format_version is missing or "
+            f"unsupported: {metadata.get('format_version')!r}."
+        )
+
     expected_critical_sha256 = _run_manifest(cfg)["critical_config_sha256"]
     recorded_critical_sha256 = metadata.get("critical_config_sha256")
     if (
@@ -809,12 +815,22 @@ def _normalize_optimizer_state_devices(optimizer):
 def _validate_optimizer_hyperparameters(optimizer, cfg):
     """Reject a checkpoint that would silently replace configured AdamW values."""
 
-    expected = {"lr": float(cfg.lr), "weight_decay": float(cfg.wd)}
+    expected = {
+        "lr": float(cfg.lr),
+        "betas": (0.9, 0.999),
+        "eps": 1e-8,
+        "weight_decay": float(cfg.wd),
+        "amsgrad": False,
+        "maximize": False,
+        "capturable": False,
+        "differentiable": False,
+        "decoupled_weight_decay": True,
+    }
     mismatches = []
     for index, parameter_group in enumerate(optimizer.param_groups):
         for key, expected_value in expected.items():
             actual = parameter_group.get(key)
-            if actual is None or float(actual) != expected_value:
+            if actual != expected_value:
                 mismatches.append(
                     f"param_group[{index}].{key}: checkpoint={actual!r}, "
                     f"configured={expected_value!r}"

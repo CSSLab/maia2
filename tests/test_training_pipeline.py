@@ -618,6 +618,7 @@ class TrainingPipelineTest(unittest.TestCase):
             "model_state_dict": source_model.state_dict(),
             "optimizer_state_dict": source_optimizer.state_dict(),
             "training_metadata": {
+                "format_version": 3,
                 "epoch": cfg.checkpoint_epoch,
                 "critical_config_sha256": train._run_manifest(cfg)[
                     "critical_config_sha256"
@@ -671,6 +672,7 @@ class TrainingPipelineTest(unittest.TestCase):
             "model_state_dict": source_model.state_dict(),
             "optimizer_state_dict": source_optimizer.state_dict(),
             "training_metadata": {
+                "format_version": 3,
                 "epoch": cfg.checkpoint_epoch,
                 "critical_config_sha256": train._run_manifest(cfg)[
                     "critical_config_sha256"
@@ -702,6 +704,32 @@ class TrainingPipelineTest(unittest.TestCase):
                     expected_source_sha256=archive_sha256,
                 )
 
+    def test_optimizer_validation_locks_adamw_semantics(self):
+        cfg = self._resume_config()
+        model = torch.nn.Linear(2, 1)
+        optimizer = torch.optim.AdamW(
+            model.parameters(), lr=cfg.lr, weight_decay=cfg.wd
+        )
+        train._validate_optimizer_hyperparameters(optimizer, cfg)
+
+        incompatible_values = {
+            "betas": (0.8, 0.999),
+            "eps": 1e-7,
+            "amsgrad": True,
+            "maximize": True,
+            "capturable": True,
+            "differentiable": True,
+            "decoupled_weight_decay": False,
+        }
+        parameter_group = optimizer.param_groups[0]
+        for key, incompatible_value in incompatible_values.items():
+            with self.subTest(key=key):
+                compatible_value = parameter_group[key]
+                parameter_group[key] = incompatible_value
+                with self.assertRaisesRegex(RuntimeError, f"param_group\\[0\\].{key}"):
+                    train._validate_optimizer_hyperparameters(optimizer, cfg)
+                parameter_group[key] = compatible_value
+
     def test_resume_metadata_rejects_epoch_source_and_critical_config_mismatch(self):
         cfg = self._resume_config()
         source_sha256 = "a" * 64
@@ -709,6 +737,7 @@ class TrainingPipelineTest(unittest.TestCase):
         def checkpoint_for(config=None, epoch=None, archive=None, digest=None):
             return {
                 "training_metadata": {
+                    "format_version": 3,
                     "epoch": cfg.checkpoint_epoch if epoch is None else epoch,
                     "critical_config_sha256": train._run_manifest(cfg)[
                         "critical_config_sha256"
@@ -731,6 +760,16 @@ class TrainingPipelineTest(unittest.TestCase):
             expected_archive_name="lichess_db_standard_rated_2023-01.pgn.zst",
             expected_source_sha256=source_sha256,
         )
+        missing_format_version = checkpoint_for()
+        del missing_format_version["training_metadata"]["format_version"]
+        with self.assertRaisesRegex(RuntimeError, "format_version"):
+            train._validate_checkpoint_metadata(missing_format_version, **common)
+
+        unknown_format_version = checkpoint_for()
+        unknown_format_version["training_metadata"]["format_version"] = 999
+        with self.assertRaisesRegex(RuntimeError, "format_version"):
+            train._validate_checkpoint_metadata(unknown_format_version, **common)
+
         missing_critical_hash = checkpoint_for()
         del missing_critical_hash["training_metadata"]["critical_config_sha256"]
         with self.assertRaisesRegex(RuntimeError, "configuration SHA-256"):
