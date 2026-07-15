@@ -78,17 +78,6 @@ for fen, move, elo_self, elo_oppo, _, _ in data.values[:10]:
 
 Try to tweak the skill level (ELO) of the activce player `elo_self` and opponent play `elo_oppo`! You may find it insightful for some positions.
 
-## Interpretability and Concept Probing
-
-For follow-up work on interpreting Maia-2's skill-aware representations, see
-[maia2-skill-adaptation](https://github.com/CSSLab/maia2-skill-adaptation).
-It includes code for extracting intermediate activations and training
-Elo-conditioned linear probes over 172 formally defined chess concepts,
-including bishop-pair and queen-capture concepts. This is an extension of the
-concept analysis in the Maia-2 paper rather than an exact reproduction of every
-measurement in the paper's chess-concept figure.
-
-
 ## Training
 
 ### Download data from [Lichess Database](https://database.lichess.org/)
@@ -115,6 +104,16 @@ configuration. A model returned by `model.from_pretrained` is intended for
 inference and is not used automatically by `train.run`.
 
 If you would like to restore training from a checkpoint, please modify the `from_checkpoint`, `checkpoint_year`, and `checkpoint_month` to indicate the initialization you need.
+
+## Interpretability and Concept Probing
+
+For follow-up work on interpreting Maia-2's skill-aware representations, see
+[maia2-skill-adaptation](https://github.com/CSSLab/maia2-skill-adaptation).
+It includes code for extracting intermediate activations and training
+Elo-conditioned linear probes over 172 formally defined chess concepts,
+including bishop-pair and queen-capture concepts. This is an extension of the
+concept analysis in the Maia-2 paper rather than an exact reproduction of every
+measurement in the paper's chess-concept figure.
 
 
 ## Citation
