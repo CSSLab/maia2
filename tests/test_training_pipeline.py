@@ -577,6 +577,10 @@ class TrainingPipelineTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Critical training"):
                 train._ensure_run_manifest(save_root, incompatible_data)
 
+            incompatible_source = self._resume_config(source_sha256="b" * 64)
+            with self.assertRaisesRegex(RuntimeError, "Critical training"):
+                train._ensure_run_manifest(save_root, incompatible_source)
+
         with tempfile.TemporaryDirectory() as directory:
             save_root = Path(directory)
             Path(save_root, "epoch_1_2023-01.pgn.pt").touch()
@@ -719,6 +723,8 @@ class TrainingPipelineTest(unittest.TestCase):
             "maximize": True,
             "capturable": True,
             "differentiable": True,
+            "foreach": False,
+            "fused": False,
             "decoupled_weight_decay": False,
         }
         parameter_group = optimizer.param_groups[0]

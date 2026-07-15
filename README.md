@@ -308,11 +308,11 @@ caches are JSON, cover the complete PGN, and are bound to its SHA-256 rather
 than only its size.
 
 Each run directory has a `run_manifest.json` that locks architecture, data
-range and chunking, filters, losses, optimizer settings, and seed. Incompatible
-settings require a new `save_root`. Existing checkpoints are never overwritten
-by default; `overwrite_checkpoints = true` is required for intentional
-replacement within an already compatible run. Checkpoints and manifests are
-installed atomically.
+range and chunking, source hashes, filter policy, losses, optimizer settings,
+and seed. Incompatible settings require a new `save_root`. Existing checkpoints
+are never overwritten by default; `overwrite_checkpoints = true` is required
+for intentional replacement within an already compatible run. Checkpoints and
+manifests are installed atomically.
 
 Legacy checkpoints remain loadable with a warning, but their configuration and
 data provenance cannot always be verified. Maia-2 refuses a resume when the

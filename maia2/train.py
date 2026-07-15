@@ -64,6 +64,7 @@ _CRITICAL_CONFIG_GROUPS = {
     ),
     "optimizer": ("lr", "wd", "batch_size"),
     "reproducibility": ("seed",),
+    "data_provenance": ("source_sha256",),
     "data_pipeline": (
         "start_year",
         "start_month",
@@ -824,13 +825,15 @@ def _validate_optimizer_hyperparameters(optimizer, cfg):
         "maximize": False,
         "capturable": False,
         "differentiable": False,
+        "foreach": None,
+        "fused": None,
         "decoupled_weight_decay": True,
     }
     mismatches = []
     for index, parameter_group in enumerate(optimizer.param_groups):
         for key, expected_value in expected.items():
             actual = parameter_group.get(key)
-            if actual != expected_value:
+            if key not in parameter_group or actual != expected_value:
                 mismatches.append(
                     f"param_group[{index}].{key}: checkpoint={actual!r}, "
                     f"configured={expected_value!r}"
