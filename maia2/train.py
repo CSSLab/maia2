@@ -735,6 +735,18 @@ def _validate_checkpoint_metadata(
     if not isinstance(metadata, dict):
         raise RuntimeError("Checkpoint training_metadata must be a mapping.")
 
+    expected_critical_sha256 = _run_manifest(cfg)["critical_config_sha256"]
+    recorded_critical_sha256 = metadata.get("critical_config_sha256")
+    if (
+        not isinstance(recorded_critical_sha256, str)
+        or recorded_critical_sha256.lower() != expected_critical_sha256
+    ):
+        raise RuntimeError(
+            "Checkpoint critical configuration SHA-256 is missing or "
+            "incompatible: "
+            f"{recorded_critical_sha256!r} != {expected_critical_sha256!r}."
+        )
+
     if metadata.get("epoch") != expected_epoch:
         raise RuntimeError(
             "Checkpoint metadata epoch does not match the configured resume "

@@ -619,6 +619,9 @@ class TrainingPipelineTest(unittest.TestCase):
             "optimizer_state_dict": source_optimizer.state_dict(),
             "training_metadata": {
                 "epoch": cfg.checkpoint_epoch,
+                "critical_config_sha256": train._run_manifest(cfg)[
+                    "critical_config_sha256"
+                ],
                 "config": vars(cfg).copy(),
                 "source": {
                     "archive_name": "lichess_db_standard_rated_2023-01.pgn.zst",
@@ -669,6 +672,9 @@ class TrainingPipelineTest(unittest.TestCase):
             "optimizer_state_dict": source_optimizer.state_dict(),
             "training_metadata": {
                 "epoch": cfg.checkpoint_epoch,
+                "critical_config_sha256": train._run_manifest(cfg)[
+                    "critical_config_sha256"
+                ],
                 "config": vars(cfg).copy(),
                 "source": {
                     "archive_name": "lichess_db_standard_rated_2023-01.pgn.zst",
@@ -704,6 +710,9 @@ class TrainingPipelineTest(unittest.TestCase):
             return {
                 "training_metadata": {
                     "epoch": cfg.checkpoint_epoch if epoch is None else epoch,
+                    "critical_config_sha256": train._run_manifest(cfg)[
+                        "critical_config_sha256"
+                    ],
                     "config": vars(cfg).copy() if config is None else config,
                     "source": {
                         "archive_name": (
@@ -722,6 +731,18 @@ class TrainingPipelineTest(unittest.TestCase):
             expected_archive_name="lichess_db_standard_rated_2023-01.pgn.zst",
             expected_source_sha256=source_sha256,
         )
+        missing_critical_hash = checkpoint_for()
+        del missing_critical_hash["training_metadata"]["critical_config_sha256"]
+        with self.assertRaisesRegex(RuntimeError, "configuration SHA-256"):
+            train._validate_checkpoint_metadata(missing_critical_hash, **common)
+
+        incompatible_critical_hash = checkpoint_for()
+        incompatible_critical_hash["training_metadata"]["critical_config_sha256"] = (
+            "b" * 64
+        )
+        with self.assertRaisesRegex(RuntimeError, "configuration SHA-256"):
+            train._validate_checkpoint_metadata(incompatible_critical_hash, **common)
+
         with self.assertRaisesRegex(RuntimeError, "metadata epoch"):
             train._validate_checkpoint_metadata(checkpoint_for(epoch=1), **common)
         with self.assertRaisesRegex(RuntimeError, "source archive"):
