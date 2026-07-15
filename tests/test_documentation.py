@@ -47,6 +47,27 @@ class DocumentationTest(unittest.TestCase):
         self.assertEqual(citation["version"], maia2.__version__)
         date.fromisoformat(str(citation["date-released"]))
 
+    def test_dependabot_keeps_runtime_version_updates_manual(self):
+        config = yaml.safe_load(
+            Path(__file__)
+            .parents[1]
+            .joinpath(".github", "dependabot.yml")
+            .read_text(encoding="utf-8")
+        )
+        updates = config["updates"]
+        pip_update = next(
+            update for update in updates if update["package-ecosystem"] == "pip"
+        )
+        actions_update = next(
+            update
+            for update in updates
+            if update["package-ecosystem"] == "github-actions"
+        )
+
+        self.assertEqual(pip_update["open-pull-requests-limit"], 0)
+        self.assertNotIn("groups", pip_update)
+        self.assertEqual(actions_update["schedule"]["interval"], "weekly")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,14 +4,11 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    groups:
-      python-runtime:
-        patterns:
-          - "*"
+    # Runtime upgrades are applied manually after CPU, CUDA, and MPS validation.
+    # Dependabot security updates remain enabled independently in repository
+    # settings.
+    open-pull-requests-limit: 0
 
-  # maia2/requirements.txt records the hardware-validated release baseline
-  # and is updated manually after CPU/CUDA/MPS validation. Repository-wide
-  # Dependabot security alerts remain enabled independently of version updates.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
