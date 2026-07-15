@@ -20,7 +20,7 @@ authors:
 repository-code: "https://github.com/CSSLab/maia2"
 url: "https://www.maiachess.com/"
 license: MIT
-version: "0.10.0"
+version: "0.11.0"
 date-released: "2026-07-15"
 preferred-citation:
   type: conference-paper

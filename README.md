@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/CSSLab/maia2/actions/workflows/ci.yml/badge.svg)](https://github.com/CSSLab/maia2/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/maia2.svg)](https://pypi.org/project/maia2/)
-[![Python](https://img.shields.io/pypi/pyversions/maia2.svg)](https://pypi.org/project/maia2/)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://github.com/CSSLab/maia2/blob/main/pyproject.toml)
 [![License](https://img.shields.io/github/license/CSSLab/maia2.svg)](https://github.com/CSSLab/maia2/blob/main/LICENSE)
 
 > [!IMPORTANT]
@@ -68,7 +68,7 @@ Install the latest release from PyPI:
 pip install maia2
 ```
 
-The `main` branch can contain maintenance work for the next patch release.
+The `main` branch can contain maintenance work for the next release.
 Clone and install the repository as shown below when validating an exact
 commit rather than the latest published PyPI artifact.
 
@@ -90,19 +90,19 @@ Contributors can install the test, formatting, and build tools with:
 python -m pip install -e ".[dev]"
 ```
 
-## Current maintenance release
+## Current release candidate
 
-Maia-2 v0.10 provides a consistent `"auto"`, `"cuda"`, `"mps"`, and `"cpu"`
-device interface for training and inference, modernizes the validated PyTorch
-environment, preserves compatibility with older DataParallel checkpoints, and
-filters Lichess accounts explicitly marked with the `BOT` title from training
-data.
+The source version on `main` is the 0.11.0 release candidate. It provides a
+consistent `"auto"`, `"cuda"`, `"mps"`, and `"cpu"` device interface for
+training and inference, preserves compatibility with older DataParallel
+checkpoints, and supports strict rated Rapid or rated Blitz training through
+packaged configurations.
 
-The source version on `main` is the 0.10.1 maintenance candidate. It adds
-cryptographic training-data provenance, safe chunk caches and checkpoint
-resumption, legal-move masking fixes, guarded downloads, the released-model
-configuration, and expanded tests and release metadata. Until 0.10.1 appears
-on PyPI, install an exact source commit to validate these changes.
+Version 0.11.0 also adds cryptographic training-data provenance, safe chunk
+caches and checkpoint resumption, legal-move masking fixes, guarded downloads,
+BOT filtering, the released-model configuration, and expanded tests and
+release metadata. Until 0.11.0 appears on PyPI, install an exact source commit
+to validate these changes.
 
 ## Quick Start: Batch Inference
 
@@ -185,7 +185,8 @@ Maia-2 trains on the monthly standard-rated archives from the
 [Lichess database](https://database.lichess.org/). Keep the downloads in
 `.pgn.zst` format; Maia-2 decompresses each archive while training.
 For compatibility with the released training pipeline, a game's PGN `Event`
-must contain the exact markers `Rated` and `Rapid`; tournament or arena names
+must contain the exact, case-sensitive marker `Rated` and the selected speed
+marker, either `Rapid` or `Blitz`. Tournament, arena, or casual Event names
 without `Rated` are intentionally excluded even when the surrounding archive
 is standard-rated.
 
@@ -204,27 +205,42 @@ Download the full date range used by the released training configuration:
 December 2019 is intentionally skipped to match the original Maia-2 training
 pipeline.
 
-### Use the released, architecture-compatible configuration
+### Choose a packaged Rapid or Blitz configuration
 
-[`maia2/configs/maia2-training.yaml`](https://github.com/CSSLab/maia2/blob/main/maia2/configs/maia2-training.yaml)
-is a byte-for-byte copy of the configuration downloaded with the released
-rapid and blitz models. It is included in both source and wheel distributions.
-The packaged resource is available from Maia-2 0.10.1 onward; if PyPI still
-shows an earlier version, install a source checkout of `main` to use it.
-Its SHA-256 digest is:
+Two maintained training presets use the released architecture and training
+parameters while making the data selection explicit:
+
+- [`maia2-training-rapid.yaml`](https://github.com/CSSLab/maia2/blob/main/maia2/configs/maia2-training-rapid.yaml)
+  selects Events containing both `Rated` and `Rapid`;
+- [`maia2-training-blitz.yaml`](https://github.com/CSSLab/maia2/blob/main/maia2/configs/maia2-training-blitz.yaml)
+  selects Events containing both `Rated` and `Blitz`.
+
+The presets default to separate Rapid and Blitz checkpoint roots. Keep them
+separate when overriding `save_root`: a run manifest prevents checkpoints from
+different game types from being mixed or resumed together. If `game_type` is
+absent from an older configuration, Maia-2 defaults to `rapid` for backward
+compatibility. Other values are rejected before any archive or output path is
+touched.
+
+[`maia2-training.yaml`](https://github.com/CSSLab/maia2/blob/main/maia2/configs/maia2-training.yaml)
+remains an immutable, byte-for-byte copy of the configuration downloaded with
+the released Rapid and Blitz models. It is the historical Rapid-compatible
+alias and is included alongside both maintained presets in source and wheel
+distributions. Its SHA-256 digest is:
 
 ```text
 4b06a5e6917dba8a55defaf3947ce97a73edca3ae2c9d225779a620353c1371b
 ```
 
-`model.from_pretrained` loads this bundled configuration directly. Downloads
-of the published rapid and blitz checkpoints are SHA-256 verified before they
-are loaded.
+`model.from_pretrained` loads the immutable bundled configuration because the
+published Rapid and Blitz checkpoints share the same architecture. Downloads
+of both checkpoints are SHA-256 verified before they are loaded.
 
-The model architecture in this file (256 CNN channels, 1024-dimensional
-transformer, five CNN blocks, two transformer blocks, and 128-dimensional Elo
-embeddings) matches the released checkpoint tensor shapes. `data_root` is the
-only machine-specific path; override it after loading the configuration:
+The model architecture in all three files (256 CNN channels,
+1024-dimensional transformer, five CNN blocks, two transformer blocks, and
+128-dimensional Elo embeddings) matches the released checkpoint tensor
+shapes. Select a maintained preset, then override machine-specific paths after
+loading it:
 
 ```python
 from importlib.resources import as_file, files
@@ -233,12 +249,15 @@ from maia2 import train, utils
 
 
 def main():
-    config_resource = files("maia2.configs").joinpath("maia2-training.yaml")
+    game_type = "rapid"  # Change to "blitz" for strict rated Blitz training.
+    config_resource = files("maia2.configs").joinpath(
+        f"maia2-training-{game_type}.yaml"
+    )
     with as_file(config_resource) as config_path:
         cfg = utils.parse_args(config_path)
 
     cfg.data_root = "/path/to/lichess_data"
-    cfg.save_root = "/path/to/checkpoints"
+    cfg.save_root = f"/path/to/checkpoints/{game_type}"
     train.run(cfg, device="auto")
 
 
@@ -308,15 +327,18 @@ caches are JSON, cover the complete PGN, and are bound to its SHA-256 rather
 than only its size.
 
 Each run directory has a `run_manifest.json` that locks architecture, data
-range and chunking, source hashes, filter policy, losses, optimizer settings,
-and seed. Incompatible settings require a new `save_root`. Existing checkpoints
-are never overwritten by default; `overwrite_checkpoints = true` is required
-for intentional replacement within an already compatible run. Checkpoints and
-manifests are installed atomically.
+range and chunking, source hashes, the selected Rapid or Blitz filter policy,
+losses, optimizer settings, and seed. Incompatible settings require a new
+`save_root`. Existing checkpoints are never overwritten by default;
+`overwrite_checkpoints = true` is required for intentional replacement within
+an already compatible run. Checkpoints and manifests are installed atomically.
 
 Legacy checkpoints remain loadable with a warning, but their configuration and
-data provenance cannot always be verified. Maia-2 refuses a resume when the
-available source, configuration, epoch, or optimizer hyperparameters conflict.
+data provenance cannot always be verified. Because historical Maia-2 training
+defaulted to Rapid, a legacy checkpoint without training metadata may only be
+resumed as Rapid; it is rejected for Blitz. Maia-2 also refuses a resume when
+the available source, configuration, epoch, or optimizer hyperparameters
+conflict.
 
 ## Interpretability and Concept Probing
 

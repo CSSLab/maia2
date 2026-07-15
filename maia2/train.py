@@ -16,7 +16,8 @@ import torch
 import torch.nn as nn
 
 from . import __version__
-from .main import MAIA2Model, preprocess_thread, read_monthly_data_path, train_chunks
+from .main import MAIA2Model, normalize_game_type, preprocess_thread
+from .main import read_monthly_data_path, train_chunks
 from .utils import count_parameters, create_elo_dict, get_all_possible_moves
 from .utils import decompression_provenance_path, decompress_zst
 from .utils import readable_num, readable_time, read_decompression_provenance
@@ -32,12 +33,20 @@ _UNSET = object()
 # Bump this identifier whenever game_filter or process_per_game changes which
 # games or positions are admitted. A run must never resume across incompatible
 # filtering semantics merely because its numeric configuration is unchanged.
-_TRAINING_FILTER_POLICY = "rated-rapid-bot-title-clock-v1"
+_TRAINING_FILTER_POLICIES = {
+    # Keep the historical Rapid identifier unchanged so existing safe Rapid
+    # manifests and checkpoints remain resumable.
+    "rapid": "rated-rapid-bot-title-clock-v1",
+    "blitz": "rated-blitz-bot-title-clock-v1",
+}
 
 _CRITICAL_CONFIG_DEFAULTS = {
     # The legacy released configuration predates this explicit option. Keep
     # its historical behavior stable while making the value part of manifests.
     "skip_months": ["2019-12"],
+    # The immutable released configuration predates configurable game types.
+    # Its hard-coded historical behavior was Rapid.
+    "game_type": "rapid",
 }
 
 _CRITICAL_CONFIG_GROUPS = {
@@ -342,7 +351,8 @@ def _critical_config(config):
         group: {key: _json_safe(_config_value(config, key)) for key in keys}
         for group, keys in _CRITICAL_CONFIG_GROUPS.items()
     }
-    critical["filters"]["policy"] = _TRAINING_FILTER_POLICY
+    game_type = normalize_game_type(_config_value(config, "game_type"))
+    critical["filters"]["policy"] = _TRAINING_FILTER_POLICIES[game_type]
     critical["optimizer"]["type"] = "AdamW"
     return critical
 
@@ -802,6 +812,13 @@ def _validate_checkpoint_metadata(
 
     metadata = checkpoint.get("training_metadata")
     if metadata is None:
+        game_type = normalize_game_type(_config_value(cfg, "game_type"))
+        if game_type != "rapid":
+            raise RuntimeError(
+                "A legacy checkpoint without training_metadata can only be "
+                "resumed as Rapid; its game type cannot be verified for a "
+                "Blitz run."
+            )
         warnings.warn(
             "The resume checkpoint has no training_metadata. Loading it as a "
             "legacy checkpoint; architecture and data provenance cannot be "
@@ -1122,6 +1139,10 @@ def _training_schedule(cfg, pgn_paths):
 
 
 def run(cfg, device="auto"):
+    # Reject misspelled or unsupported data selections before seeding,
+    # resolving devices, creating output directories, or touching archives.
+    normalize_game_type(getattr(cfg, "game_type", "rapid"))
+
     print("Configurations:", flush=True)
     for arg in vars(cfg):
         print(f"\t{arg}: {getattr(cfg, arg)}", flush=True)

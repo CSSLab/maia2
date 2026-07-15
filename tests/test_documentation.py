@@ -1,6 +1,10 @@
+from datetime import date
 import re
 import unittest
 from pathlib import Path
+
+import maia2
+import yaml
 
 
 class DocumentationTest(unittest.TestCase):
@@ -22,6 +26,26 @@ class DocumentationTest(unittest.TestCase):
             "## Interpretability", 1
         )[0]
         self.assertIn('if __name__ == "__main__":', training_section)
+
+    def test_training_docs_name_both_strict_speed_presets(self):
+        for name in (
+            "maia2-training-rapid.yaml",
+            "maia2-training-blitz.yaml",
+        ):
+            with self.subTest(name=name):
+                self.assertIn(name, self.readme)
+        self.assertIn("both `Rated` and `Rapid`", self.readme)
+        self.assertIn("both `Rated` and `Blitz`", self.readme)
+
+    def test_citation_version_matches_package_version(self):
+        citation = yaml.safe_load(
+            Path(__file__)
+            .parents[1]
+            .joinpath("CITATION.cff")
+            .read_text(encoding="utf-8")
+        )
+        self.assertEqual(citation["version"], maia2.__version__)
+        date.fromisoformat(str(citation["date-released"]))
 
 
 if __name__ == "__main__":

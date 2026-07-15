@@ -36,6 +36,22 @@ PGN_GAME = """[Event "Rated Rapid game"]
 
 
 class TrainingPipelineTest(unittest.TestCase):
+    def test_invalid_game_type_fails_before_training_side_effects(self):
+        cfg = SimpleNamespace(game_type="bullet")
+        with (
+            mock.patch("maia2.train.seed_everything") as seed,
+            mock.patch("maia2.train.resolve_device") as resolve_device,
+            mock.patch("maia2.train.read_monthly_data_path") as read_paths,
+            mock.patch("maia2.train.MAIA2Model") as model,
+            self.assertRaisesRegex(ValueError, "rapid.*blitz"),
+        ):
+            train.run(cfg, device="cpu")
+
+        seed.assert_not_called()
+        resolve_device.assert_not_called()
+        read_paths.assert_not_called()
+        model.assert_not_called()
+
     def test_fresh_and_resumed_training_schedules_preserve_all_epochs(self):
         paths = [
             f"/data/lichess_db_standard_rated_2023-{month:02d}.pgn"
@@ -558,6 +574,18 @@ class TrainingPipelineTest(unittest.TestCase):
 
     def test_run_manifest_detects_config_and_legacy_directory_collisions(self):
         cfg = self._resume_config()
+        explicit_rapid = self._resume_config(game_type="rapid")
+        blitz = self._resume_config(game_type="blitz")
+        self.assertEqual(train._run_manifest(cfg), train._run_manifest(explicit_rapid))
+        self.assertEqual(
+            train._run_manifest(blitz)["critical_config"]["filters"]["policy"],
+            "rated-blitz-bot-title-clock-v1",
+        )
+        self.assertNotEqual(
+            train._run_manifest(cfg)["critical_config_sha256"],
+            train._run_manifest(blitz)["critical_config_sha256"],
+        )
+
         with tempfile.TemporaryDirectory() as directory:
             save_root = Path(directory)
             manifest_path = train._ensure_run_manifest(save_root, cfg)
@@ -581,6 +609,9 @@ class TrainingPipelineTest(unittest.TestCase):
             incompatible_source = self._resume_config(source_sha256="b" * 64)
             with self.assertRaisesRegex(RuntimeError, "Critical training"):
                 train._ensure_run_manifest(save_root, incompatible_source)
+
+            with self.assertRaisesRegex(RuntimeError, "Critical training"):
+                train._ensure_run_manifest(save_root, blitz)
 
         with tempfile.TemporaryDirectory() as directory:
             save_root = Path(directory)
@@ -627,7 +658,7 @@ class TrainingPipelineTest(unittest.TestCase):
             "rng_state": train._capture_rng_state(torch.device("cpu")),
             "training_metadata": {
                 "format_version": 3,
-                "maia2_version": "0.10.1",
+                "maia2_version": "0.11.0",
                 "torch_version": str(torch.__version__),
                 "epoch": cfg.checkpoint_epoch,
                 "optimizer_steps": 1,
@@ -754,7 +785,7 @@ class TrainingPipelineTest(unittest.TestCase):
             "rng_state": train._capture_rng_state(torch.device("cpu")),
             "training_metadata": {
                 "format_version": 3,
-                "maia2_version": "0.10.1",
+                "maia2_version": "0.11.0",
                 "torch_version": str(torch.__version__),
                 "epoch": cfg.checkpoint_epoch,
                 "optimizer_steps": 1,
@@ -830,7 +861,7 @@ class TrainingPipelineTest(unittest.TestCase):
                 "accumulated_games": 1,
                 "training_metadata": {
                     "format_version": 3,
-                    "maia2_version": "0.10.1",
+                    "maia2_version": "0.11.0",
                     "torch_version": str(torch.__version__),
                     "epoch": cfg.checkpoint_epoch if epoch is None else epoch,
                     "optimizer_steps": 1,
@@ -928,8 +959,23 @@ class TrainingPipelineTest(unittest.TestCase):
                         checkpoint_for(config=saved_config), **common
                     )
 
+        blitz_config = vars(cfg).copy()
+        blitz_config["game_type"] = "blitz"
+        with self.assertRaisesRegex(RuntimeError, "critical[\\s\\S]*filters.policy"):
+            train._validate_checkpoint_metadata(
+                checkpoint_for(config=blitz_config), **common
+            )
+
         with self.assertWarnsRegex(RuntimeWarning, "legacy checkpoint"):
             train._validate_checkpoint_metadata({}, **common)
+
+        with self.assertRaisesRegex(
+            RuntimeError, "legacy checkpoint.*only be resumed as Rapid"
+        ):
+            train._validate_checkpoint_metadata(
+                {},
+                **{**common, "cfg": self._resume_config(game_type="blitz")},
+            )
 
     @staticmethod
     def _resume_config(**overrides):

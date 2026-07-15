@@ -58,8 +58,10 @@ jobs:
         if: matrix.python-version == '3.12'
         run: |
           python -m build
-          unzip -l dist/*.whl | grep -F "maia2/configs/maia2-training.yaml"
-          tar -tzf dist/*.tar.gz | grep -F "maia2/configs/maia2-training.yaml"
+          for config in maia2-training.yaml maia2-training-rapid.yaml maia2-training-blitz.yaml; do
+            unzip -l dist/*.whl | grep -F "maia2/configs/$config"
+            tar -tzf dist/*.tar.gz | grep -F "maia2/configs/$config"
+          done
           python -m pip install --force-reinstall --no-deps dist/*.whl
-          python -c "import hashlib, pathlib, maia2; p = pathlib.Path(maia2.__file__).parent / 'configs' / 'maia2-training.yaml'; assert maia2.__version__ == '0.10.1'; assert hashlib.sha256(p.read_bytes()).hexdigest() == '4b06a5e6917dba8a55defaf3947ce97a73edca3ae2c9d225779a620353c1371b'"
+          python -I -c "import hashlib, pathlib, sysconfig, maia2; package = pathlib.Path(maia2.__file__).resolve().parent; purelib = pathlib.Path(sysconfig.get_paths()['purelib']).resolve(); assert package.is_relative_to(purelib); root = package / 'configs'; assert maia2.__version__ == '0.11.0'; assert {p.name for p in root.glob('*.yaml')} == {'maia2-training.yaml', 'maia2-training-rapid.yaml', 'maia2-training-blitz.yaml'}; assert hashlib.sha256((root / 'maia2-training.yaml').read_bytes()).hexdigest() == '4b06a5e6917dba8a55defaf3947ce97a73edca3ae2c9d225779a620353c1371b'"
           python -m pip check

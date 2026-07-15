@@ -4,6 +4,7 @@
 
 | Version | Supported |
 | --- | --- |
+| 0.11.x | Yes |
 | 0.10.x | Yes |
 | 0.9.x and older | No |
 

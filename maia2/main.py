@@ -22,7 +22,28 @@ from .utils import (
 )
 
 
+_GAME_TYPE_EVENT_MARKERS = {
+    "rapid": "Rapid",
+    "blitz": "Blitz",
+}
+
+
+def normalize_game_type(game_type="rapid"):
+    """Return a supported training game type in canonical lowercase form."""
+
+    if not isinstance(game_type, str):
+        raise ValueError("game_type must be either 'rapid' or 'blitz'.")
+    normalized = game_type.strip().lower()
+    if normalized not in _GAME_TYPE_EVENT_MARKERS:
+        raise ValueError("game_type must be either 'rapid' or 'blitz'.")
+    return normalized
+
+
 def process_chunks(cfg, pgn_path, pgn_chunks, elo_dict):
+    # Validate before creating worker processes so an invalid configuration
+    # fails in the caller rather than independently inside every worker.
+    normalize_game_type(getattr(cfg, "game_type", "rapid"))
+
     if not pgn_chunks:
         return [], 0, 0
 
@@ -99,7 +120,7 @@ def process_per_game(game, white_elo, black_elo, white_win, cfg):
     return ret
 
 
-def game_filter(game):
+def _game_filter(game, event_game_type):
 
     white_elo = game.headers.get("WhiteElo", "?")
     black_elo = game.headers.get("BlackElo", "?")
@@ -124,12 +145,12 @@ def game_filter(game):
     ):
         return
 
-    # Keep the original Maia-2 data definition strict: only games whose Event
-    # explicitly identifies both rated and rapid play enter the training set.
+    # Keep the original Maia-2 rated-game requirement strict. The configured
+    # speed is also matched using Lichess's exact, case-sensitive Event marker.
     if "Rated" not in event:
         return
 
-    if "Rapid" not in event:
+    if event_game_type not in event:
         return
 
     for _, node in enumerate(game.mainline()):
@@ -154,9 +175,20 @@ def game_filter(game):
     return game, white_elo, black_elo, white_win
 
 
+def game_filter(game, game_type="rapid"):
+    """Filter one game using strict rated Rapid or rated Blitz semantics."""
+
+    if isinstance(game_type, str) and game_type in _GAME_TYPE_EVENT_MARKERS:
+        normalized = game_type
+    else:
+        normalized = normalize_game_type(game_type)
+    return _game_filter(game, _GAME_TYPE_EVENT_MARKERS[normalized])
+
+
 def process_per_chunk(args):
 
     start_pos, end_pos, pgn_path, elo_dict, cfg = args
+    game_type = normalize_game_type(getattr(cfg, "game_type", "rapid"))
 
     ret = []
     game_count = 0
@@ -172,7 +204,7 @@ def process_per_chunk(args):
             if game is None:
                 break
 
-            filtered_game = game_filter(game)
+            filtered_game = game_filter(game, game_type)
             if filtered_game:
                 game, white_elo, black_elo, white_win = filtered_game
                 white_elo = map_to_category(white_elo, elo_dict)
@@ -549,6 +581,8 @@ def evaluate(model, dataloader):
 
 def evaluate_MAIA1_data(model, all_moves_dict, elo_dict, cfg, tiny=False):
     test_root = Path(getattr(cfg, "maia1_test_root", "../data/test"))
+    game_type = normalize_game_type(getattr(cfg, "game_type", "rapid"))
+    event_game_type = _GAME_TYPE_EVENT_MARKERS[game_type]
     elo_list = range(1000, 2600, 100)
 
     for i in elo_list:
@@ -556,9 +590,18 @@ def evaluate_MAIA1_data(model, all_moves_dict, elo_dict, cfg, tiny=False):
         end = i + 100
         file_path = test_root / f"KDDTest_{start}-{end}.csv"
         data = pd.read_csv(file_path)
-        data = data[data.type == "Rapid"][
+        data = data[data.type == event_game_type][
             ["board", "move", "active_elo", "opponent_elo", "white_active"]
         ]
+        if data.empty:
+            warnings.warn(
+                f"Skipping Elo range {start}-{end}: no {event_game_type} rows.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            if tiny:
+                break
+            continue
         dataset = MAIA1Dataset(data, all_moves_dict, elo_dict, cfg)
         dataloader = torch.utils.data.DataLoader(
             dataset,
