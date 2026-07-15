@@ -38,10 +38,10 @@ class TrainingGameFilterTest(unittest.TestCase):
         self.assertIsNotNone(game_filter(_game_with_titles()))
         self.assertIsNotNone(game_filter(_game_with_titles("GM", "IM")))
 
-    def test_keeps_rated_database_games_with_arena_event_names(self):
+    def test_drops_rapid_events_without_a_rated_marker(self):
         game = _game_with_titles()
         game.headers["Event"] = "≤2000 Rapid Arena"
-        self.assertIsNotNone(game_filter(game))
+        self.assertIsNone(game_filter(game))
 
     def test_drops_an_explicitly_casual_rapid_export(self):
         game = _game_with_titles()

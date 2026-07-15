@@ -124,15 +124,12 @@ def game_filter(game):
     ):
         return
 
-    # Monthly ``standard_rated`` archives guarantee ratedness, while Event is
-    # not a stable rated/casual flag: tournament and arena exports can contain
-    # names such as "≤2000 Rapid Arena". Still reject an explicitly casual
-    # standalone export.
-    normalized_event = event.casefold()
-    if "casual" in normalized_event:
+    # Keep the original Maia-2 data definition strict: only games whose Event
+    # explicitly identifies both rated and rapid play enter the training set.
+    if "Rated" not in event:
         return
 
-    if "rapid" not in normalized_event:
+    if "Rapid" not in event:
         return
 
     for _, node in enumerate(game.mainline()):
