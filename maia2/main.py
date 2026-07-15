@@ -453,15 +453,16 @@ def evaluate(model, dataloader):
     correct_move = 0
     
     model.eval()
+    device = next(model.parameters()).device
     with torch.no_grad():
         
         for boards, labels, elos_self, elos_oppo, legal_moves, side_info in dataloader:
             
-            boards = boards.cuda()
-            labels = labels.cuda()
-            elos_self = elos_self.cuda()
-            elos_oppo = elos_oppo.cuda()
-            legal_moves = legal_moves.cuda()
+            boards = boards.to(device)
+            labels = labels.to(device)
+            elos_self = elos_self.to(device)
+            elos_oppo = elos_oppo.to(device)
+            legal_moves = legal_moves.to(device)
 
             logits_maia, logits_side_info, logits_value = model(boards, elos_self, elos_oppo)
             logits_maia_legal = logits_maia * legal_moves
@@ -514,15 +515,16 @@ def train_chunks(cfg, data, model, optimizer, all_moves_dict, criterion_maia, cr
     avg_loss_side_info = 0
     avg_loss_value = 0
     step = 0
+    device = next(model.parameters()).device
     for boards, labels, elos_self, elos_oppo, legal_moves, side_info, wdl in dataloader_train:
 
         model.train()
-        boards = boards.cuda()
-        labels = labels.cuda()
-        elos_self = elos_self.cuda()
-        elos_oppo = elos_oppo.cuda()
-        side_info = side_info.cuda()
-        wdl = wdl.float().cuda()
+        boards = boards.to(device)
+        labels = labels.to(device)
+        elos_self = elos_self.to(device)
+        elos_oppo = elos_oppo.to(device)
+        side_info = side_info.to(device)
+        wdl = wdl.float().to(device)
         
         logits_maia, logits_side_info, logits_value = model(boards, elos_self, elos_oppo)
         
@@ -564,4 +566,3 @@ def preprocess_thread(queue, cfg, pgn_path, pgn_chunks_sublist, elo_dict):
 def worker_wrapper(semaphore, *args, **kwargs):
     with semaphore:
         preprocess_thread(*args, **kwargs)
-

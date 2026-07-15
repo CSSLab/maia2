@@ -92,8 +92,17 @@ Please modify `data_root` in the config file to indicate where you stored the do
 ```python
 from maia2 import train, utils
 cfg = utils.parse_args(cfg_file_path="./maia2_models/config.yaml")
-train.run(cfg)
+train.run(cfg, device="auto")
 ```
+
+The training device can be set to `"cuda"`, `"mps"` (Apple Silicon), or
+`"cpu"`. The default `"auto"` setting selects CUDA first, then MPS, and
+finally CPU. CPU training is supported but is likely to be much slower; reduce
+the configured batch size and number of workers when training on a laptop.
+
+`train.run` creates a new model unless checkpoint restoration is enabled in the
+configuration. A model returned by `model.from_pretrained` is intended for
+inference and is not used automatically by `train.run`.
 
 If you would like to restore training from a checkpoint, please modify the `from_checkpoint`, `checkpoint_year`, and `checkpoint_month` to indicate the initialization you need.
 

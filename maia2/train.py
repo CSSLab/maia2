@@ -11,13 +11,69 @@ import torch.nn as nn
 import pdb
 
 
-def run(cfg):
+def resolve_device(device="auto"):
+
+    if isinstance(device, torch.device):
+        requested_device = device
+    else:
+        device = "auto" if device is None else str(device).lower()
+        if device == "gpu":
+            device = "cuda"
+
+        if device == "auto":
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
+
+        requested_device = torch.device(device)
+
+    if requested_device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA was requested, but it is not available.")
+    if requested_device.type == "mps" and not torch.backends.mps.is_available():
+        raise RuntimeError("MPS was requested, but it is not available.")
+    if requested_device.type not in {"cpu", "cuda", "mps"}:
+        raise ValueError(
+            f"Unsupported training device: {requested_device.type}. "
+            "Choose from 'auto', 'cpu', 'cuda', or 'mps'."
+        )
+
+    return requested_device
+
+
+def load_model_state_dict(model, state_dict):
+
+    target_uses_data_parallel = isinstance(model, nn.DataParallel)
+    checkpoint_uses_data_parallel = any(
+        key.startswith("module.") for key in state_dict
+    )
+
+    if checkpoint_uses_data_parallel and not target_uses_data_parallel:
+        state_dict = {
+            key.removeprefix("module."): value for key, value in state_dict.items()
+        }
+    elif target_uses_data_parallel and not checkpoint_uses_data_parallel:
+        state_dict = {f"module.{key}": value for key, value in state_dict.items()}
+
+    model.load_state_dict(state_dict)
+
+
+def get_num_processes(num_cpu_left):
+
+    return max(1, cpu_count() - num_cpu_left)
+
+
+def run(cfg, device="auto"):
     
     print('Configurations:', flush=True)
     for arg in vars(cfg):
         print(f'\t{arg}: {getattr(cfg, arg)}', flush=True)
     seed_everything(cfg.seed)
-    num_processes = cpu_count() - cfg.num_cpu_left
+    device = resolve_device(device)
+    print(f'\tdevice: {device}', flush=True)
+    num_processes = get_num_processes(cfg.num_cpu_left)
 
     save_root = f'../saves/{cfg.lr}_{cfg.batch_size}_{cfg.wd}/'
     if not os.path.exists(save_root):
@@ -30,8 +86,9 @@ def run(cfg):
     model = MAIA2Model(len(all_moves), elo_dict, cfg)
 
     print(model, flush=True)
-    model = model.cuda()
-    model = nn.DataParallel(model)
+    model = model.to(device)
+    if device.type == "cuda":
+        model = nn.DataParallel(model)
     criterion_maia = nn.CrossEntropyLoss()
     criterion_side_info = nn.BCEWithLogitsLoss()
     criterion_value = nn.MSELoss()
@@ -45,8 +102,11 @@ def run(cfg):
 
     if cfg.from_checkpoint:
         formatted_month = f"{cfg.checkpoint_month:02d}"
-        checkpoint = torch.load(save_root + f'epoch_{cfg.checkpoint_epoch}_{cfg.checkpoint_year}-{formatted_month}.pgn.pt')
-        model.load_state_dict(checkpoint['model_state_dict'])
+        checkpoint = torch.load(
+            save_root + f'epoch_{cfg.checkpoint_epoch}_{cfg.checkpoint_year}-{formatted_month}.pgn.pt',
+            map_location=device,
+        )
+        load_model_state_dict(model, checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         accumulated_samples = checkpoint['accumulated_samples']
         accumulated_games = checkpoint['accumulated_games']
