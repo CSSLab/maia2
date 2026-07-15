@@ -184,6 +184,10 @@ skill level (`elo_oppo`) to inspect how the predictions change.
 Maia-2 trains on the monthly standard-rated archives from the
 [Lichess database](https://database.lichess.org/). Keep the downloads in
 `.pgn.zst` format; Maia-2 decompresses each archive while training.
+For compatibility with the released training pipeline, a game's PGN `Event`
+must contain the exact markers `Rated` and `Rapid`; tournament or arena names
+without `Rated` are intentionally excluded even when the surrounding archive
+is standard-rated.
 
 Download one month for a local training check:
 

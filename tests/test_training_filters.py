@@ -48,6 +48,11 @@ class TrainingGameFilterTest(unittest.TestCase):
         game.headers["Event"] = "Casual Rapid game"
         self.assertIsNone(game_filter(game))
 
+    def test_drops_rated_games_without_a_rapid_marker(self):
+        game = _game_with_titles()
+        game.headers["Event"] = "Rated Blitz game"
+        self.assertIsNone(game_filter(game))
+
     def test_drops_games_with_a_labeled_bot(self):
         bot_title_pairs = [
             ("BOT", None),

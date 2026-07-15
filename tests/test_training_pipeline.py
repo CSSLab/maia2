@@ -562,6 +562,11 @@ class TrainingPipelineTest(unittest.TestCase):
             manifest_path = train._ensure_run_manifest(save_root, cfg)
             original = manifest_path.read_text(encoding="utf-8")
             self.assertEqual(train._ensure_run_manifest(save_root, cfg), manifest_path)
+            manifest = json.loads(original)
+            self.assertEqual(
+                manifest["critical_config"]["filters"]["policy"],
+                "rated-rapid-bot-title-clock-v1",
+            )
 
             incompatible = self._resume_config(dim_cnn=16)
             with self.assertRaisesRegex(RuntimeError, "Critical training"):

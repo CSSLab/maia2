@@ -28,6 +28,11 @@ _RUN_MANIFEST_NAME = "run_manifest.json"
 _MISSING = "__MAIA2_CONFIG_VALUE_MISSING__"
 _UNSET = object()
 
+# Bump this identifier whenever game_filter or process_per_game changes which
+# games or positions are admitted. A run must never resume across incompatible
+# filtering semantics merely because its numeric configuration is unchanged.
+_TRAINING_FILTER_POLICY = "rated-rapid-bot-title-clock-v1"
+
 _CRITICAL_CONFIG_DEFAULTS = {
     # The legacy released configuration predates this explicit option. Keep
     # its historical behavior stable while making the value part of manifests.
@@ -335,6 +340,7 @@ def _critical_config(config):
         group: {key: _json_safe(_config_value(config, key)) for key in keys}
         for group, keys in _CRITICAL_CONFIG_GROUPS.items()
     }
+    critical["filters"]["policy"] = _TRAINING_FILTER_POLICY
     critical["optimizer"]["type"] = "AdamW"
     return critical
 
