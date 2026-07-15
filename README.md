@@ -191,20 +191,9 @@ set `from_checkpoint`, `checkpoint_epoch`, `checkpoint_year`, and
 `checkpoint_month`, while keeping the original full date range in the
 configuration.
 
-For an independently verified single-month run, provide the archive digest:
-
-```python
-cfg.start_year = cfg.end_year = 2018
-cfg.start_month = cfg.end_month = 5
-cfg.source_sha256 = "3b522ebe20bd745b763298efcb0043abfa80a8e3b55a1c9bf4a4f4f8236289e8"
-```
-
-For multiple months, use a complete `{YYYY-MM: digest}` mapping. Each run
-records its configuration and data provenance. Incompatible settings require a
-new `save_root`, and existing checkpoints are not overwritten. To replace one
-intentionally, set `overwrite_checkpoints: true` in the YAML configuration.
-Legacy checkpoints without training metadata can only be resumed as Rapid;
-incompatible data, configuration, or optimizer state is rejected.
+Maia-2 records data provenance and rejects incompatible checkpoints. Use a
+separate `save_root` for different configurations. Legacy checkpoints without
+training metadata can only be resumed with Rapid configurations.
 
 ## Interpretability
 
@@ -236,9 +225,8 @@ url={https://openreview.net/forum?id=2ltBRzEHyd}
 }
 ```
 
-Please cite Maia-2 when using this repository. If you also use Maia-3, please
-cite its Chessformer paper. If you find the projects useful, we would
-appreciate stars on both [Maia-2](https://github.com/CSSLab/maia2) and
+Please cite the relevant paper(s) and consider starring both
+[Maia-2](https://github.com/CSSLab/maia2) and
 [Maia-3](https://github.com/CSSLab/maia3).
 
 ## Contributing and contact
