@@ -72,6 +72,15 @@ print(accuracy)
 `"mps"`, or `"cpu"` to choose explicitly. Adjust `batch_size` and
 `num_workers` for the available memory.
 
+### Paper test set
+
+The example test dataset is the full Maia-2 paper test set (Maia-1 Testset,
+Rapid games only). `load_example_test_dataset()` applies the only filter used
+in the paper, `move_ply > 10`, which leaves the 106,740 test positions. No
+clock filter is applied at test time. The skill groups in the paper are based
+on the game's rating bin (the `rounded_elo` column): 56,812 positions below
+1600, 41,747 in 1600 to 1999, and 8,181 at 2000 or above.
+
 ### Position-wise inference
 
 Prepare the move and Elo mappings once, then reuse them:
