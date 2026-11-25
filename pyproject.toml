@@ -52,6 +52,10 @@ Issues = "https://github.com/CSSLab/maia2/issues"
 [tool.ruff]
 target-version = "py310"
 
+[tool.ruff.lint]
+# Pin the rule set so new Ruff releases do not change what CI enforces.
+select = ["E4", "E7", "E9", "F"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
